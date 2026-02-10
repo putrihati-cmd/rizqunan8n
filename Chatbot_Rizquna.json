@@ -1,0 +1,119 @@
+{
+  "name": "Chatbot Rizquna (Senior CS Mode)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-chat",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ],
+      "id": "trigger",
+      "name": "Webhook (Incoming)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM products WHERE judul ILIKE '%' || $1 || '%' OR penulis ILIKE '%' || $1 || '%' LIMIT 3;",
+        "queryParameters": "={{ $json.body.payload.body }}"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        620,
+        300
+      ],
+      "id": "db",
+      "name": "Get Product Info",
+      "credentials": {
+        "postgres": {
+          "id": "PILIH_CREDENTIAL_POSTGRES_DI_N8N"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAcvO2yUOs9ja9FwJbEpZQKj2t1VrCGzNc",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\":[{\"text\": \"Kamu adalah Senior Customer Service (CS) dari Rizquna.id (Penerbit & Percetakan). Standar pelayananmu setara dengan CS Bank BCA atau Telkomsel. Gaya bicaramu sangat sopan, solutif, dan hangat.\\n\\nSTRUKTUR JAWABAN:\\n1. Salam Pembuka (Assalamualaikum/Selamat Pagi/Siang/Sore).\\n2. Jawaban Langsung terhadap pertanyaan.\\n3. Jika ada data produk dari database: Tuliskan JUDUL buku, PENULIS, dan HARGA dengan format Rp (Rupiah).\\n4. Penutup dengan Call to Action (Ada lagi yang bisa saya bantu Kak?).\\n\\nDATA PRODUK (REFERENSI): {{ JSON.stringify($node['Get Product Info'].json) }}\\nPESAN CUSTOMER: {{ $node['Webhook (Incoming)'].json.body.payload.body }}\\n\\nCATATAN:\\n- Jangan pernah mengarang harga jika data tidak ada.\\n- Jika produk tidak ada, tawarkan untuk menghubungi Admin Manusia di wa.me/6285119467138 atau sarankan buku lain.\\n- Gunakan kata 'Kak' atau 'Sahabat Rizquna'.\"}]\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        840,
+        300
+      ],
+      "id": "gemini",
+      "name": "Gemini Engine (CS Personality)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chatId\": \"{{ $node['Webhook (Incoming)'].json.body.payload.from }}\",\n  \"text\": \"{{ $json.candidates[0].content.parts[0].text.replace(/\\n/g, '\\\\n').replace(/\"/g, '\\\\\"') }}\",\n  \"reply_to\": \"{{ $node['Webhook (Incoming)'].json.body.payload.id }}\"\n}",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "4fc027f30e674a9c8f726ed9a37c3cf4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1100,
+        300
+      ],
+      "id": "waha",
+      "name": "WhatsApp Reply"
+    }
+  ],
+  "connections": {
+    "Webhook (Incoming)": {
+      "main": [
+        [
+          {
+            "node": "Get Product Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Info": {
+      "main": [
+        [
+          {
+            "node": "Gemini Engine (CS Personality)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Engine (CS Personality)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

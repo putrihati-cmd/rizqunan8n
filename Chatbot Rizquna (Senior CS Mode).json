@@ -1,0 +1,119 @@
+{
+  "name": "Chatbot Rizquna (Senior CS Mode) - FULLY CONNECTED",
+  "nodes": [
+    {
+      "parameters": {
+        "events": [
+          "message"
+        ]
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.wahaTrigger",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "id": "trigger-node",
+      "name": "WAHA Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM products WHERE judul ILIKE '%' || $1 || '%' OR penulis ILIKE '%' || $1 || '%' LIMIT 3;",
+        "queryParameters": "={{ $node[\"WAHA Trigger\"].json[\"payload\"][\"body\"] }}"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        670,
+        300
+      ],
+      "id": "db-node",
+      "name": "Get Product Info",
+      "credentials": {
+        "postgres": {
+          "id": "9t1jqUpfC9jdWjjS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAcvO2yUOs9ja9FwJbEpZQKj2t1VrCGzNc",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\":[{\"text\": \"Kamu adalah Senior Customer Service (CS) dari Rizquna.id (Penerbit & Percetakan). Standar pelayananmu setara dengan CS Bank BCA atau Telkomsel. Gaya bicaramu sangat sopan, solutif, dan hangat.\\n\\nSTRUKTUR JAWABAN:\\n1. Salam Pembuka (Assalamualaikum/Selamat Pagi/Siang/Sore).\\n2. Jawaban Langsung terhadap pertanyaan.\\n3. Jika ada data produk dari database: Tuliskan JUDUL buku, PENULIS, dan HARGA dengan format Rp (Rupiah).\\n4. Penutup dengan Call to Action (Ada lagi yang bisa saya bantu Kak?).\\n\\nDATA PRODUK (REFERENSI): {{ JSON.stringify($node['Get Product Info'].json) }}\\nPESAN CUSTOMER: {{ $node['WAHA Trigger'].json['payload']['body'] }}\\n\\nCATATAN:\\n- Jangan pernah mengarang harga jika data tidak ada.\\n- Jika produk tidak ada, tawarkan untuk menghubungi Admin Manusia di wa.me/6285119467138 atau sarankan buku lain.\\n- Gunakan kata 'Kak' atau 'Sahabat Rizquna'.\"}]\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        890,
+        300
+      ],
+      "id": "gemini-node",
+      "name": "Gemini Engine"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chatId\": \"{{ $node['WAHA Trigger'].json['payload']['from'] }}\",\n  \"text\": \"{{ $json.candidates[0].content.parts[0].text.replace(/\\n/g, '\\\\n').replace(/\"/g, '\\\\\"') }}\",\n  \"reply_to\": \"{{ $node['WAHA Trigger'].json['payload']['id'] }}\"\n}",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "4fc027f30e674a9c8f726ed9a37c3cf4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1110,
+        300
+      ],
+      "id": "reply-node",
+      "name": "WhatsApp Reply"
+    }
+  ],
+  "connections": {
+    "WAHA Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Product Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Info": {
+      "main": [
+        [
+          {
+            "node": "Gemini Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Engine": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
